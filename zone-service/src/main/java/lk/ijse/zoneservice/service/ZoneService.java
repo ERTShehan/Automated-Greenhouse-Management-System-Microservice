@@ -1,44 +1,84 @@
 package lk.ijse.zoneservice.service;
 
+import lk.ijse.zoneservice.IOTClient.DeviceRequest;
+import lk.ijse.zoneservice.IOTClient.DeviceResponse;
+import lk.ijse.zoneservice.IOTClient.IotClient;
+import lk.ijse.zoneservice.dto.ZoneRequest;
+import lk.ijse.zoneservice.dto.ZoneResponse;
 import lk.ijse.zoneservice.entity.Zone;
 import lk.ijse.zoneservice.repository.ZoneRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ZoneService {
-    @Autowired
     private ZoneRepository zoneRepository;
+    private IotClient iotClient;
 
-    public Zone createZone(Zone zone) {
-        if (zone.getMinTemp() >= zone.getMaxTemp()) {
-            throw new IllegalArgumentException("Minimum temperature must be strictly less than maximum temperature.");
+    @Value("${iot.api.token:}")
+    private String iotToken;
+
+    public ZoneResponse createZone(ZoneRequest request) {
+        if (request.getMinTemp() >= request.getMaxTemp()) {
+            throw new IllegalArgumentException(
+                    "minTemp must be less than maxTemp");
         }
 
-        return zoneRepository.save(zone);
+        DeviceRequest deviceReq = new DeviceRequest();
+        deviceReq.setZoneId(String.valueOf(System.currentTimeMillis()));
+        deviceReq.setName(request.getName());
+        deviceReq.setType("GREENHOUSE_SENSOR");
+
+        DeviceResponse deviceResp = iotClient.registerDevice(
+                deviceReq, "Bearer " + iotToken);
+
+        Zone zone = new Zone();
+        zone.setName(request.getName());
+        zone.setMinTemp(request.getMinTemp());
+        zone.setMaxTemp(request.getMaxTemp());
+        zone.setDeviceId(deviceResp.getDeviceId());
+
+        Zone saved = zoneRepository.save(zone);
+        return toResponse(saved);
     }
 
-    public Optional<Zone> getZoneById(String id) {
-        return zoneRepository.findById(id);
+    public ZoneResponse getZone(Long id) {
+        Zone zone = zoneRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException(
+                        "Zone not found: " + id));
+        return toResponse(zone);
     }
 
-    public Zone updateZone(String id, Zone updatedZone) {
-        return zoneRepository.findById(id).map(existingZone -> {
-            if (updatedZone.getMinTemp() >= updatedZone.getMaxTemp()) {
-                throw new IllegalArgumentException("Minimum temperature must be strictly less than maximum temperature.");
-            }
-            existingZone.setName(updatedZone.getName());
-            existingZone.setMinTemp(updatedZone.getMinTemp());
-            existingZone.setMaxTemp(updatedZone.getMaxTemp());
-            return zoneRepository.save(existingZone);
-        }).orElseThrow(() -> new RuntimeException("Zone not found with id " + id));
+    public List<ZoneResponse> getAllZones() {
+        return zoneRepository.findAll()
+                .stream().map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
-    public void deleteZone(String id) {
+    public ZoneResponse updateZone(Long id, ZoneRequest req) {
+        Zone zone = zoneRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Zone not found"));
+        if (req.getMinTemp() >= req.getMaxTemp())
+            throw new IllegalArgumentException(
+                    "minTemp must be less than maxTemp");
+        zone.setName(req.getName());
+        zone.setMinTemp(req.getMinTemp());
+        zone.setMaxTemp(req.getMaxTemp());
+        return toResponse(zoneRepository.save(zone));
+    }
+
+    public void deleteZone(Long id) {
         zoneRepository.deleteById(id);
+    }
+
+    private ZoneResponse toResponse(Zone z) {
+        return new ZoneResponse(z.getId(), z.getName(),
+                z.getMinTemp(), z.getMaxTemp(),
+                z.getDeviceId(), z.getCreatedAt());
     }
 }

@@ -10,7 +10,6 @@ import lombok.NoArgsConstructor;
 @Data
 @Builder
 public class DeviceResponse {
-    private String zoneId;
-    private String name;
-    private String type;
+    private String deviceId;
+    private String status;
 }
