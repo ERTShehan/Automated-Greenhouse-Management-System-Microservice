@@ -2,12 +2,14 @@ package lk.ijse.zoneservice.service;
 
 import lk.ijse.zoneservice.entity.Zone;
 import lk.ijse.zoneservice.repository.ZoneRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class ZoneService {
     @Autowired
     private ZoneRepository zoneRepository;
